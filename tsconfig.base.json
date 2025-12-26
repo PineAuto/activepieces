@@ -325,7 +325,8 @@
       ],
       "@activepieces/piece-metatext": [
         "packages/pieces/community/metatext/src/index.ts"
-      ]
+      ],
+      "@pineauto/autotrade": ["packages/pieces/community/pineauto/src/index.ts"]
     },
     "resolveJsonModule": true
   },
