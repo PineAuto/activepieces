@@ -138,9 +138,24 @@ export class OrderlyClient {
     body?: any,
     retries = 3
   ): Promise<T> {
+    let url = `${this.baseUrl}${endpoint}`;
+
+    // For GET/HEAD requests, convert body to query parameters
+    if ((method === 'GET' || method === 'HEAD') && body) {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(body)) {
+        if (value !== undefined && value !== null) {
+          params.append(key, String(value));
+        }
+      }
+      const queryString = params.toString();
+      url += '?' + queryString;
+      endpoint += '?' + queryString;  // Update endpoint for signature generation
+      body = undefined;  // Clear body for GET/HEAD
+    }
+
     // CHANGED: await getHeaders() because Ed25519 signing is async
     const headers = await this.getHeaders(method, endpoint, body);
-    const url = `${this.baseUrl}${endpoint}`;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -229,7 +244,7 @@ export class OrderlyClient {
     side: 'BUY' | 'SELL';
     order_type: 'MARKET' | 'LIMIT';
     order_price?: number;
-    order_quantity: number;
+    order_quantity: number | string;  // Accepts both number and string for precision
     client_order_id?: string;
   }): Promise<OrderResponse> {
     return this.request<OrderResponse>('POST', '/v1/order', orderData);
@@ -290,6 +305,15 @@ export class OrderlyClient {
       symbol,
       leverage,
     });
+  }
+
+  /**
+   * Get current leverage setting for a symbol
+   * @param symbol - Trading symbol (e.g., 'PERP_BTC_USDC')
+   * @returns Object containing current leverage: {success, timestamp, data: {symbol, leverage}}
+   */
+  async getLeverage(symbol: string): Promise<any> {
+    return this.request('GET', '/v1/client/leverage', { symbol });
   }
 
   /**

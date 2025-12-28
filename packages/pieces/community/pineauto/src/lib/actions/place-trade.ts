@@ -30,6 +30,8 @@ import {
   convertNotionalToAssetQuantity,
   roundToStepSize,
   validatePostRoundingNotional,
+  formatQuantityToStepSize,
+  getDecimalPlaces,
 } from '../common/utils';
 import { MIN_ORDER_SIZE_USD } from '../common/constants';
 
@@ -201,13 +203,32 @@ export const placeTrade = createAction({
     // ========================================
 
     let leverageSet = false;
+    let actualLeverage: number | null = null;
+
     try {
+      // Set leverage for the symbol
       await client.setLeverage(props.symbol, finalProps.leverage);
+
+      // Verify leverage was set correctly by querying current leverage
+      const leverageInfo = await client.getLeverage(props.symbol);
+      actualLeverage = leverageInfo.leverage || leverageInfo.data?.leverage;
+
+      // Check if actual leverage matches requested leverage
+      if (actualLeverage !== finalProps.leverage) {
+        throw new Error(
+          `Leverage mismatch: Requested ${finalProps.leverage}x, ` +
+          `but actual leverage is ${actualLeverage}x`
+        );
+      }
+
       leverageSet = true;
+      console.log(`✅ Leverage set successfully: ${actualLeverage}x for ${props.symbol}`);
+
     } catch (error: any) {
-      // Log warning but continue (leverage might already be set)
-      errors.push(`Leverage setting warning: ${error.message}`);
-      console.warn(`Failed to set leverage: ${error.message}`);
+      // Throw error instead of warning - leverage setting is critical
+      throw new Error(
+        `Failed to set leverage to ${finalProps.leverage}x for ${props.symbol}: ${error.message}`
+      );
     }
 
     // ========================================
@@ -439,13 +460,23 @@ export const placeTrade = createAction({
     let orderResponse: any;
     let orderId: string;
 
+    // Format quantity to exact step size precision as STRING
+    // Prevents JavaScript floating-point precision errors (0.00228 → 0.00228000000000001)
+    const formattedQuantity = formatQuantityToStepSize(finalOrderQuantity, baseTickSize);
+
+    console.log(`🔢 Precision formatting:
+  - Raw quantity: ${finalOrderQuantity}
+  - Step size: ${baseTickSize}
+  - Formatted: "${formattedQuantity}" (string)
+  - Decimal places: ${getDecimalPlaces(baseTickSize)}`);
+
     try {
       orderResponse = await client.placeOrder({
         symbol: props.symbol,
         side: props.side as 'BUY' | 'SELL',
         order_type: finalProps.orderType as 'MARKET' | 'LIMIT',
         order_price: finalProps.orderType === 'LIMIT' ? props.limitPrice : undefined,
-        order_quantity: finalOrderQuantity,
+        order_quantity: formattedQuantity,  // STRING type for API precision
         client_order_id: `tv-${Date.now()}`,
       });
 

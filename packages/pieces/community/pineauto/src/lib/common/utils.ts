@@ -304,3 +304,78 @@ export function validatePostRoundingNotional(
     suggestedMinUsd,
   };
 }
+
+/**
+ * Calculate the number of decimal places in a step size
+ *
+ * JavaScript floating-point precision can cause issues when sending numbers to APIs.
+ * This function determines the exact decimal precision needed for proper string formatting.
+ *
+ * @param stepSize - The base_tick (step size) from symbol configuration
+ * @returns Number of decimal places in the step size
+ *
+ * @example
+ * // Step size 0.00001 (5 decimal places)
+ * getDecimalPlaces(0.00001)
+ * // Returns: 5
+ *
+ * @example
+ * // Step size 0.001 (3 decimal places)
+ * getDecimalPlaces(0.001)
+ * // Returns: 3
+ *
+ * @example
+ * // Step size 1e-5 (scientific notation)
+ * getDecimalPlaces(1e-5)
+ * // Returns: 5
+ */
+export function getDecimalPlaces(stepSize: number): number {
+  if (stepSize <= 0) {
+    throw new Error('Step size must be greater than 0');
+  }
+
+  const stepSizeStr = stepSize.toString();
+
+  // Handle scientific notation (e.g., 1e-5)
+  if (stepSizeStr.includes('e')) {
+    const exponent = parseInt(stepSizeStr.split('e')[1]);
+    return Math.abs(exponent);
+  }
+
+  // Handle regular decimal notation
+  const decimalIndex = stepSizeStr.indexOf('.');
+  if (decimalIndex === -1) {
+    return 0; // No decimal places (integer step size)
+  }
+
+  const decimalPart = stepSizeStr.substring(decimalIndex + 1);
+  return decimalPart.length;
+}
+
+/**
+ * Format order quantity to exact step size precision as a string
+ *
+ * Solves JavaScript floating-point precision issues by formatting to exact decimal places.
+ * Returns a STRING to prevent precision artifacts when sending to API.
+ *
+ * @param quantity - Calculated order quantity (already rounded to step size)
+ * @param stepSize - The base_tick (step size) from symbol configuration
+ * @returns Quantity formatted as string with exact precision
+ *
+ * @example
+ * // Format 0.00228 with step size 0.00001 (5 decimal places)
+ * formatQuantityToStepSize(0.00228, 0.00001)
+ * // Returns: "0.00228" (string, exactly 5 decimal places)
+ *
+ * @example
+ * // Prevents precision errors like 0.00228000000000001
+ * formatQuantityToStepSize(0.00228000000000001, 0.00001)
+ * // Returns: "0.00228" (string, clean format)
+ */
+export function formatQuantityToStepSize(
+  quantity: number,
+  stepSize: number
+): string {
+  const decimalPlaces = getDecimalPlaces(stepSize);
+  return quantity.toFixed(decimalPlaces);
+}
